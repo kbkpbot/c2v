@@ -1040,7 +1040,6 @@ fn (mut c C2V) if_statement(mut node Node) {
 	}
 	// Optional else block
 	mut else_st := node.try_get_next_child() or {
-		println(err)
 		bad_node
 	}
 	if else_st.kindof(.compound_stmt) || else_st.kindof(.return_stmt) {

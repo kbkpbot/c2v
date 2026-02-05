@@ -1,0 +1,12 @@
+@[translated]
+module main
+
+// Test that casting 0 to a pointer type generates voidptr(0)
+// This avoids "cannot dereference nil pointer" errors in V
+fn main() {
+	// C idiom: (type*)0 or (type*)NULL
+	ptr1 := unsafe { nil }
+	ptr2 := unsafe { nil }
+	ptr3 := unsafe { nil }
+	return
+}

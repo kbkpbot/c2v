@@ -1,0 +1,14 @@
+@[translated]
+module main
+
+fn get_be32(ptr voidptr) u32 {
+	p := &u8(ptr)
+	return u32(p[0]) << 24 | u32(p[1]) << 16 | u32(p[2]) << 8 | u32(p[3])
+}
+
+fn main() {
+	data := [18, 52, 86, 120]!
+
+	val := get_be32(data)
+	return
+}

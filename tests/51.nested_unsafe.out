@@ -1,0 +1,24 @@
+@[translated]
+module main
+
+// Test that nested unsafe blocks are avoided
+// When a pointer dereference is inside an assignment to a dereferenced pointer,
+// we should not generate nested unsafe blocks
+fn main() {
+	x := 10
+	y := 20
+	px := &x
+	py := &y
+	// This generates: unsafe { *px = *py }
+	// The inner *py should not have its own unsafe block
+	unsafe {
+		*px = *py
+	}
+	// More complex case with ternary
+	result := &x
+	cond := 1
+	unsafe {
+		*result = if cond { *px } else { *py }
+	}
+	return
+}

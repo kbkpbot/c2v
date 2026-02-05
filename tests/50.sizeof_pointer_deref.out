@@ -1,0 +1,20 @@
+@[translated]
+module main
+
+// Test that sizeof with pointer dereferences doesn't generate unsafe blocks
+// sizeof doesn't evaluate its operand, so no unsafe block is needed
+struct Point {
+	x int
+	y int
+}
+
+fn main() {
+	ptr := &Point(0)
+	size1 := sizeof(*ptr)
+	ptr2 := &&int(0)
+	size2 := sizeof(*ptr2)
+	// Allocate using the computed size
+	p := C.malloc(size1)
+	C.free(p)
+	return
+}

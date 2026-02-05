@@ -1,0 +1,25 @@
+@[translated]
+module main
+
+// Common C function declarations
+fn C.__builtin_expect(int, int) int
+
+fn test_builtin_expect(x int) int {
+	if C.__builtin_expect(x > 0, 1) {
+		return 1
+	}
+	return 0
+}
+
+@[c: '__builtin_expect']
+fn c_builtin_expect(arg0 int, arg1 int) int
+
+fn test_assert(x int) {
+	{}
+}
+
+fn main() {
+	result := test_builtin_expect(5)
+	test_assert(result)
+	return
+}

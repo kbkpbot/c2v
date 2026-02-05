@@ -29,9 +29,9 @@ const builtin_fn_names = ['fopen', 'puts', 'fflush', 'getline', 'printf', 'memse
 	'memmove', 'vsnprintf', 'rintf', 'rint', 'bsearch', 'qsort', '__stdinp', '__stdoutp', '__stderrp',
 	'getenv', 'strtoul', 'strtol', 'strtod', 'strtof', '__error', 'errno', 'atol', 'atof', 'atoll',
 	'fputs', 'fputc', 'putchar', 'getchar', 'putc', 'getc', 'feof', 'ferror', 'clearerr', 'fileno',
-	'isalnum', 'isalpha', 'isdigit', 'islower', 'isupper', 'isxdigit', 'iscntrl', 'isgraph', 'isprint', 'ispunct',
-	'tolower', 'strcat', 'strncat', 'strpbrk', 'strspn', 'strcspn', 'strstr', 'strerror',
-	'sprintf', 'vsprintf', 'vfprintf', 'vprintf', '__assert_rtn', '__builtin_expect']
+	'isalnum', 'isalpha', 'isdigit', 'islower', 'isupper', 'isxdigit', 'iscntrl', 'isgraph',
+	'isprint', 'ispunct', 'tolower', 'strcat', 'strncat', 'strpbrk', 'strspn', 'strcspn', 'strstr',
+	'strerror', 'sprintf', 'vsprintf', 'vfprintf', 'vprintf', '__assert_rtn', '__builtin_expect']
 
 const c_known_fn_names = ['some_non_existant_c_fn_name']
 
@@ -178,11 +178,11 @@ mut:
 	globals             map[string]Global
 	inside_switch       int // used to be a bool, a counter to handle switches inside switches
 	inside_switch_enum  bool
-	inside_for          bool // to handle `;;++i`
-	inside_comma_expr   bool // to handle prefix ++/-- in comma expressions
-	inside_array_index  bool // for enums used as int array index: `if player.weaponowned[.wp_chaingun]`
-	inside_sizeof       bool // to skip unsafe blocks for pointer dereferences in sizeof
-	inside_unsafe       bool // to prevent nested unsafe blocks
+	inside_for          bool     // to handle `;;++i`
+	inside_comma_expr   bool     // to handle prefix ++/-- in comma expressions
+	inside_array_index  bool     // for enums used as int array index: `if player.weaponowned[.wp_chaingun]`
+	inside_sizeof       bool     // to skip unsafe blocks for pointer dereferences in sizeof
+	inside_unsafe       bool     // to prevent nested unsafe blocks
 	pre_cond_stmts      []string // statements to output before conditions (for assignment-in-expr patterns)
 	global_struct_init  string
 	cur_out_line        string
@@ -213,7 +213,7 @@ mut:
 	has_cfile               bool
 	returning_bool          bool
 	cur_fn_ret_type         string // current function's return type
-	keep_ast                bool // do not delete ast.json after running
+	keep_ast                bool   // do not delete ast.json after running
 	last_declared_type_name string
 	can_output_comment      map[int]bool          // to avoid duplicate output comment
 	cnt                     int                   // global unique id counter
@@ -423,8 +423,8 @@ fn (mut c C2V) save() {
 	// Generate declarations for external C types
 	// Generate common C function declarations if they're used
 	mut c_fn_decls := strings.new_builder(100)
-	needs_c_fns := s.contains('C.getenv') || s.contains('C.strtoul') || s.contains('C.__error') ||
-	               s.contains('C.qsort') || s.contains('C.__builtin_expect') || s.contains('C.__assert_rtn')
+	needs_c_fns := s.contains('C.getenv') || s.contains('C.strtoul') || s.contains('C.__error')
+		|| s.contains('C.qsort') || s.contains('C.__builtin_expect') || s.contains('C.__assert_rtn')
 	if needs_c_fns {
 		c_fn_decls.write_string('\n// Common C function declarations\n')
 		if s.contains('C.getenv') {
@@ -696,10 +696,8 @@ fn (mut c C2V) fn_decl(mut node Node, gen_types string) {
 		// no need to genenerate it here.
 		return
 	}
-	if node.ast_type.qualified.contains('...)') {
-		// TODO handle this better (`...any` ?)
-		c.genln('@[c2v_variadic]')
-	}
+	// Don't generate @[c2v_variadic] attribute - V's formatter handles variadic parameters correctly
+	// and will convert "s ...&i8" to the correct format
 	if c.is_wrapper {
 		if c_name in c.fns {
 			return
@@ -833,9 +831,7 @@ fn (mut c C2V) fn_params(mut node Node) []string {
 		mut c_arg_typ_name := arg_typ.name
 		mut v_arg_typ_name := arg_typ.name
 
-		if c_arg_typ_name.contains('...') {
-			vprintln('vararg: ' + c_arg_typ_name)
-		} else if c_arg_typ_name.ends_with('*restrict') {
+		if c_arg_typ_name.ends_with('*restrict') {
 			c_arg_typ_name = fix_restrict_name(c_arg_typ_name)
 			v_arg_typ_name = convert_type(c_arg_typ_name.trim_right('restrict')).name
 		}
@@ -846,6 +842,21 @@ fn (mut c C2V) fn_params(mut node Node) []string {
 			v_param_name = 'arg${i}'
 		}
 		str_args << '${v_param_name} ${v_arg_typ_name}'
+	}
+	// If the function is variadic, add ... to the last parameter
+	if node.ast_type.qualified.contains('...)') {
+		if str_args.len > 0 {
+			last_arg := str_args.last()
+			// Extract the type from the last argument
+			// Format: "param_name type"
+			parts := last_arg.split(' ')
+			if parts.len >= 2 {
+				v_param_name := parts[0]
+				v_arg_typ_name := parts[1]
+				// Replace the last argument with variadic syntax
+				str_args[str_args.len - 1] = '${v_param_name} ...${v_arg_typ_name}'
+			}
+		}
 	}
 	return str_args
 }
@@ -868,11 +879,6 @@ fn convert_type(typ_ string) Type {
 		vprintln('\nconvert_type("${typ}")')
 	}
 
-	if typ.contains('__va_list_tag *') {
-		return Type{
-			name: 'va_list'
-		}
-	}
 	// TODO DOOM hack
 	typ = typ.replace('fixed_t', 'int')
 
@@ -880,11 +886,11 @@ fn convert_type(typ_ string) Type {
 	if is_const {
 	}
 	typ = typ.replace('const ', '')
-	typ = typ.replace(' const', '')     // Handle "char * const" cases (const pointer with space)
-	typ = typ.replace('*const', '*')    // Handle "char *const" cases (const pointer without space)
+	typ = typ.replace(' const', '') // Handle "char * const" cases (const pointer with space)
+	typ = typ.replace('*const', '*') // Handle "char *const" cases (const pointer without space)
 	typ = typ.replace('volatile ', '')
-	typ = typ.replace(' volatile', '')  // Handle "FILE *volatile" cases
-	typ = typ.replace('volatile', '')   // Handle any remaining volatile
+	typ = typ.replace(' volatile', '') // Handle "FILE *volatile" cases
+	typ = typ.replace('volatile', '') // Handle any remaining volatile
 	typ = typ.replace('std::', '')
 	if typ.trim_space() == 'char **' {
 		return Type{
@@ -939,6 +945,8 @@ fn convert_type(typ_ string) Type {
 	// Replace void ** before void * to avoid partial matches
 	typ = typ.replace(' void **', ' &voidptr')
 	typ = typ.replace(' void *', ' voidptr')
+	// Handle __va_list_tag * as voidptr
+	typ = typ.replace(' __va_list_tag *', ' voidptr')
 
 	// char*** => ***char
 	mut base := typ.trim_space()
@@ -1070,7 +1078,7 @@ fn convert_type(typ_ string) Type {
 		'intmax_t' {
 			'i64'
 		}
-		'va_list', '__builtin_va_list', '__gnuc_va_list' {
+		'va_list', '__builtin_va_list', '__gnuc_va_list', '__va_list_tag *' {
 			'voidptr'
 		}
 		'pthread_mutex_t' {
@@ -1224,7 +1232,9 @@ fn (mut c C2V) enum_decl(mut node Node) {
 				// Get the integer value for this enum constant
 				enum_val := c.get_enum_int_value(const_expr, current_val)
 				current_val = enum_val
-				c.gen(' = ${enum_val}')
+				// Get the string representation (which handles character literals correctly)
+				enum_val_str := c.get_enum_value_string(const_expr, enum_val)
+				c.gen(' = ${enum_val_str}')
 			}
 		} else if has_anon_generated {
 			c.gen(' = ${i}')
@@ -1265,6 +1275,10 @@ fn (mut c C2V) get_enum_int_value(const_expr Node, default_val i64) i64 {
 		if inner.kindof(.integer_literal) {
 			return inner.value.to_str().i64()
 		}
+		// Character literal - return its value (will be handled specially in enum_decl)
+		if inner.kindof(.character_literal) {
+			return inner.value.to_str().i64()
+		}
 		// Reference to another enum constant - look up its value
 		if inner.kindof(.decl_ref_expr) {
 			ref_name := inner.ref_declaration.name
@@ -1284,6 +1298,84 @@ fn (mut c C2V) get_enum_int_value(const_expr Node, default_val i64) i64 {
 		}
 	}
 	return default_val
+}
+
+// get_enum_value_string returns the string representation of an enum constant value.
+// For character literals, it returns the V character syntax (e.g., `a` instead of 97).
+fn (mut c C2V) get_enum_value_string(const_expr Node, default_val i64) string {
+	// Look at the inner expression first to determine the type
+	if const_expr.inner.len > 0 {
+		inner := const_expr.inner[0]
+		// Character literal - return V character syntax
+		if inner.kindof(.character_literal) {
+			r := rune(inner.value as int)
+			match r {
+				`\0` { return '`\\0`' }
+				`\`` { return '`\\``' }
+				`'` { return "`\\'`" }
+				`\"` { return '`\\"`' }
+				`\\` { return '`\\\\`' }
+				`\a` { return '`\\a`' }
+				`\b` { return '`\\b`' }
+				`\f` { return '`\\f`' }
+				`\n` { return '`\\n`' }
+				`\r` { return '`\\r`' }
+				`\t` { return '`\\t`' }
+				`\v` { return '`\\v`' }
+				else { return '`${r}`' }
+			}
+		}
+		// Integer literal - return its value
+		if inner.kindof(.integer_literal) {
+			return inner.value.to_str()
+		}
+		// Reference to another enum constant - look up its value
+		if inner.kindof(.decl_ref_expr) {
+			ref_name := inner.ref_declaration.name
+			if ref_name in c.enum_int_vals {
+				return c.enum_int_vals[ref_name].str()
+			}
+		}
+		// Implicit cast - look deeper
+		if inner.kindof(.implicit_cast_expr) && inner.inner.len > 0 {
+			inner2 := inner.inner[0]
+			// Check for character literal after implicit cast
+			if inner2.kindof(.character_literal) {
+				r := rune(inner2.value as int)
+				match r {
+					`\0` { return '`\\0`' }
+					`\`` { return '`\\``' }
+					`'` { return "`\\'`" }
+					`\"` { return '`\\"`' }
+					`\\` { return '`\\\\`' }
+					`\a` { return '`\\a`' }
+					`\b` { return '`\\b`' }
+					`\f` { return '`\\f`' }
+					`\n` { return '`\\n`' }
+					`\r` { return '`\\r`' }
+					`\t` { return '`\\t`' }
+					`\v` { return '`\\v`' }
+					else { return '`${r}`' }
+				}
+			}
+			if inner2.kindof(.decl_ref_expr) {
+				ref_name := inner2.ref_declaration.name
+				if ref_name in c.enum_int_vals {
+					return c.enum_int_vals[ref_name].str()
+				}
+			}
+			// Integer literal after implicit cast
+			if inner2.kindof(.integer_literal) {
+				return inner2.value.to_str()
+			}
+		}
+	}
+	// Try to get value from the ConstantExpr itself (as fallback)
+	val_str := const_expr.value.to_str()
+	if val_str != '' {
+		return val_str
+	}
+	return default_val.str()
 }
 
 fn (mut c C2V) statements(mut compound_stmt Node) {
@@ -1974,7 +2066,8 @@ fn (mut c C2V) var_decl(mut decl_stmt Node) {
 					// Check if this is a type alias to a primitive type
 					// V doesn't allow TypeAlias{} for primitive type aliases, use TypeAlias(0) instead
 					underlying := c.resolve_type_alias(typ)
-					if underlying in ['u8', 'u16', 'u32', 'u64', 'i8', 'i16', 'int', 'i64', 'f32', 'f64', 'usize', 'isize', 'bool'] {
+					if underlying in ['u8', 'u16', 'u32', 'u64', 'i8', 'i16', 'int', 'i64', 'f32',
+						'f64', 'usize', 'isize', 'bool'] {
 						def = '${typ}(0)'
 					} else {
 						def = '${typ}{}'
@@ -2093,7 +2186,8 @@ unique name')
 				c.gen('@[weak] ')
 			}
 
-			if typ_name.contains('unnamed at') {
+			if typ_name.contains('unnamed at') || typ_name.contains('unnamed struct at')
+				|| typ_name.contains('unnamed union at') {
 				typ_name = c.last_declared_type_name
 			}
 			c.gen('__global ${c_name} ${typ_name} ')
@@ -2222,7 +2316,8 @@ fn (mut c C2V) expr(_node &Node) string {
 		if first_expr.kindof(.paren_expr) && first_expr.inner.len > 0 {
 			deref_expr = first_expr.inner[0]
 		}
-		mut is_deref_assign := op == '=' && deref_expr.kindof(.unary_operator) && deref_expr.opcode == '*'
+		mut is_deref_assign := op == '=' && deref_expr.kindof(.unary_operator)
+			&& deref_expr.opcode == '*'
 		mut deref_func_call := false
 		if is_deref_assign {
 			// Get the pointer expression without the dereference wrapper
@@ -2231,7 +2326,8 @@ fn (mut c C2V) expr(_node &Node) string {
 				bad_node
 			}
 			// Check if we're dereferencing a function call - V doesn't allow this on the left side
-			if ptr_expr.kindof(.call_expr) || (ptr_expr.kindof(.implicit_cast_expr) && ptr_expr.inner.len > 0 && ptr_expr.inner[0].kindof(.call_expr)) {
+			if ptr_expr.kindof(.call_expr) || (ptr_expr.kindof(.implicit_cast_expr)
+				&& ptr_expr.inner.len > 0 && ptr_expr.inner[0].kindof(.call_expr)) {
 				// Generate a temporary variable for the function result
 				deref_func_call = true
 				c.genln('{')
@@ -2260,7 +2356,8 @@ fn (mut c C2V) expr(_node &Node) string {
 			println(add_place_data_to_error(err))
 			bad_node
 		}
-		if op == '=' && second_expr.kindof(.binary_operator) && second_expr.opcode == '=' && !c.inside_for {
+		if op == '=' && second_expr.kindof(.binary_operator) && second_expr.opcode == '='
+			&& !c.inside_for {
 			// handle `a = b = c` => `a = c; b = c;` (skip in for loop init)
 			second_child_expr := second_expr.try_get_next_child() or {
 				println(add_place_data_to_error(err))
@@ -2568,7 +2665,8 @@ fn (mut c C2V) expr(_node &Node) string {
 		}
 		// Special case: casting 0 to a pointer type should generate voidptr(0)
 		// to avoid V's "cannot dereference nil pointer" errors
-		if expr.kindof(.integer_literal) && expr.value.to_str() == '0' && (cast.starts_with('&') || cast == 'voidptr') {
+		if expr.kindof(.integer_literal) && expr.value.to_str() == '0'
+			&& (cast.starts_with('&') || cast == 'voidptr') {
 			c.gen('voidptr(0)')
 			return ''
 		}
@@ -2631,7 +2729,7 @@ fn (mut c C2V) expr(_node &Node) string {
 		vprintln(node.str())
 	} else if node.kindof(.predefined_expr) {
 		v_predefined := match node.name {
-			'__FUNCTION__', '__func__' { '@FN.str' }  // .str for C compatibility
+			'__FUNCTION__', '__func__' { '@FN.str' } // .str for C compatibility
 			'__line__' { '@LINE' }
 			'__file__' { '@FILE' }
 			else { '' }

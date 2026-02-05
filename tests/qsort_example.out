@@ -1,0 +1,22 @@
+@[translated]
+module main
+
+// Common C function declarations
+fn C.qsort(voidptr, usize, usize, fn (voidptr, voidptr) int)
+
+fn compare_ints(a voidptr, b voidptr) int {
+	return (unsafe { *&int(a) }) - (unsafe { *&int(b) })
+}
+
+fn sane_qsort(base voidptr, nmemb usize, size usize, compar fn (voidptr, voidptr) int) {
+	if nmemb > 1 {
+		C.qsort(base, nmemb, size, compar)
+	}
+}
+
+fn main() {
+	arr := [3, 1, 4, 1, 5, 9, 2, 6]!
+
+	sane_qsort(arr, 8, sizeof(int), compare_ints)
+	return
+}

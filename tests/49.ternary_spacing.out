@@ -1,0 +1,29 @@
+@[translated]
+module main
+
+// Test that ternary operators are translated with proper spacing
+// The condition and opening brace should have a space between them
+fn max(a int, b int) int {
+	return if a > b { a } else { b }
+}
+
+fn clamp(val int, min int, max int) int {
+	return if val < min { min } else { (if val > max {
+			max
+		} else {
+			val
+		})
+	 }
+}
+
+fn get_size(n int) int {
+	// This pattern is common in hash tables
+	return if n < 16 { 1 } else { n >> 4 }
+}
+
+fn main() {
+	x := max(10, 20)
+	y := clamp(15, 0, 100)
+	z := get_size(32)
+	return
+}

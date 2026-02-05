@@ -1,0 +1,36 @@
+@[translated]
+module main
+
+fn get_offset(pos i64) i64 {
+	return pos + 1024
+}
+
+fn get_uid() u32 {
+	return 1000
+}
+
+fn get_pid() int {
+	return 12345
+}
+
+fn get_time(t i64) i64 {
+	return t + 3600
+}
+
+fn get_mode() u32 {
+	return 493
+}
+
+fn get_device() u64 {
+	return 12345678
+}
+
+fn main() {
+	offset := get_offset(0)
+	uid := get_uid()
+	pid := get_pid()
+	t := get_time(0)
+	mode := get_mode()
+	dev := get_device()
+	return
+}

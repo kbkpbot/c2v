@@ -1,0 +1,24 @@
+@[translated]
+module main
+
+// Test that dereferencing a function call on the left side of assignment
+// generates a temporary variable
+fn get_ptr() &int {
+	x := 42
+	return &x
+}
+
+fn main() {
+	// This should generate:
+	// {
+	//     tmp := get_ptr()
+	//     unsafe { *tmp = 10 }
+	// }
+	{
+		tmp := get_ptr()
+		unsafe {
+			*tmp = 10
+		}
+	}
+	return
+}
